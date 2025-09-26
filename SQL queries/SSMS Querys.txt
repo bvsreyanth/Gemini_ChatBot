@@ -1,0 +1,119 @@
+--Retrieving Tables
+Select * from Persons;
+Select * from Customers;
+
+--Query for Selecting Columns from a Table
+select LastName as LName from Persons
+
+--Query for Outputting Data Using a Constraint
+select Name,Age From CUSTOMERS Where Age>20;
+
+--Query for Outputting Sorted Data Using ‘Order By’
+--Select PersonId,LastName from Persons Where City =Seattle ORDER BY PersonId;
+
+--SQL Query for Outputting Sorted Data Using ‘Group By’
+SELECT Name, Age FROM CUSTOMERS WHERE Age > 30
+GROUP BY Name, Age ORDER BY Name;
+
+ --Using COUNT
+SELECT COUNT(Age) AS COUNT_OF_AGE, Age FROM CUSTOMERS 
+WHERE Age < 70 GROUP BY Age ORDER BY Age
+
+--SUM
+	
+SELECT NAME, Age, SUM(Salary) AS SUM_OF_SALARY
+FROM CUSTOMERS
+WHERE Age < 33
+GROUP BY NAME, Age;
+
+--AVG
+	
+SELECT  AVG(SALARY)AS AVERAGE_SALARY FROM CUSTOMERS;
+
+--Retrieving Tables
+Select * from Persons;
+Select * from Customers;
+
+--UPDATE
+UPDATE CUSTOMERS
+SET Name = 'Clover',
+    Age = 90,
+    Salary = 210000,
+    City = 'Helsinki',
+    Country = 'Finland'
+WHERE ID = 10;
+
+--INSERT 
+INSERT INTO CUSTOMERS (NAME, AGE, SALARY, CITY, COUNTRY)
+VALUES ('AS', 82, 2200000, 'Walla', 'Poland');
+
+--DELETE
+DELETE FROM CUSTOMERS WHERE ID=12;
+
+--TOP Clause
+SELECT TOP 3 * FROM Customers;
+
+--Retrieving Tables
+Select * from Persons;
+Select * from Customers;
+
+--INNER JOIN
+--Select --ColumnList
+--From-------LeftTable
+--JoinType--Righttable
+--ON---Join Condition
+
+SELECT *
+FROM PERSONS 
+INNER JOIN CUSTOMERS ON PERSONS.PersonID=CUSTOMERS.ID;
+
+--CONDITION
+
+SELECT PERSONS.PersonID,CUSTOMERS.Name
+FROM PERSONS 
+INNER JOIN CUSTOMERS ON PERSONS.PersonID=CUSTOMERS.ID;
+
+--LEFT JOIN
+--SELECT column_name(s)
+--FROM table1
+--LEFT JOIN table2
+--ON table1.column_name = table2.column_name;
+
+SELECT PERSONS.PersonID,CUSTOMERS.Name
+FROM PERSONS 
+LEFT JOIN CUSTOMERS ON PERSONS.PersonID=CUSTOMERS.ID;
+
+--RIGHT JOIN
+SELECT PERSONS.PersonID,CUSTOMERS.Name
+FROM PERSONS 
+RIGHT JOIN CUSTOMERS ON PERSONS.PersonID=CUSTOMERS.ID;
+
+--FULL OUTER JOIN
+SELECT*
+FROM PERSONS 
+FULL OUTER JOIN CUSTOMERS ON PERSONS.PersonID=CUSTOMERS.ID;
+
+-- Self Join
+SELECT * FROM PERSONS,CUSTOMERS WHERE AGE>28;
+
+--Retrieving Tables
+Select * from Persons;
+Select * from Customers;
+
+--BETWEEN & AND OPERATOR
+SELECT * FROM CUSTOMERS
+WHERE AGE BETWEEN 20 AND 50;
+
+--INSERT 
+INSERT INTO CUSTOMERS (NAME, AGE, SALARY, CITY, COUNTRY)
+VALUES ('AS', 82, 2200000, 'Walla', 'Poland');
+
+--ROLLBACK
+BEGIN TRANSACTION;
+DELETE from CUSTOMERS Where AGE = 82;  
+ROLLBACK;  
+
+--COMMIT
+BEGIN TRANSACTION;
+DELETE from CUSTOMERS Where AGE = 82;  
+COMMIT;    

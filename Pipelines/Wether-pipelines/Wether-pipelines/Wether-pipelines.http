@@ -1,0 +1,6 @@
+@Wether_pipelines_HostAddress = http://localhost:5043
+
+GET {{Wether_pipelines_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
