@@ -1,0 +1,184 @@
+﻿pr:
+  branches:
+    include:
+      - main
+trigger:
+  branches:
+    include:
+      - main
+variables:
+  BuildConfiguration: 'Release'
+  isMain: $[eq(variables['Build.SourceBranch'], 'refs/heads/main')] 
+  VMIMAGE: "windows-latest"
+  appType: webApp
+pool:
+  vmImage: 'windows-latest'
+
+#Build stage
+stages:
+  - stage: Build
+    displayName: 'Build and publish as artifacts'
+    jobs:
+      - job: 'BuildJob'
+        displayName: 'Build and publish as artifacts'
+        steps:
+          - checkout: self
+            fetchDepth: 0  # Ensures the pipeline fetches the full repository
+
+          - script: |
+              echo "Current directory:"
+              pwd
+              echo "List of files in the repo:"
+              ls -R
+            displayName: "Debug: Print Current Directory and Files"
+
+          - task: UseDotNet@2
+            displayName: 'Use dotnet sdk'
+            inputs:
+              version: 8.x
+
+          - task: NuGetToolInstaller@0
+            displayName: Use NuGet 6.13.1
+            inputs:
+              versionSpec: 6.13.1
+
+          - task: NuGetCommand@2
+            displayName: NuGet restore
+            inputs:
+              solution: Sreyanth/PipelinesDemo/PipelinesDemo.sln
+
+          - task: VSBuild@1
+            displayName: Build solution
+            inputs:
+              solution: "Sreyanth/PipelinesDemo/PipelinesDemo.sln"
+              msbuildArgs: /p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=true /p:SkipInvalidConfigurations=true /p:DesktopBuildPackageLocation=$(build.artifactstagingdirectory)\WebApp.zip /p:DeployIisAppPath="Default Web Site"
+              platform: $(buildplatform)
+              configuration: $(BuildConfiguration)
+              restoreNugetPackages: true
+
+          - task: CopyFiles@2
+            condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+            displayName: Copy deployment template files to artifacts
+            inputs:
+              SourceFolder: Sreyanth/PipelinesDemo/PipelinesDemo.sln
+              Contents: "**/*"
+              TargetFolder: $(Build.ArtifactStagingDirectory)/Sreyanth/PipelinesDemo/PipelinesDemo.sln
+
+          - task: DotNetCoreCLI@2
+            condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+            displayName: Publish
+            inputs:
+              command: publish
+              publishWebProjects: false
+              projects: Sreyanth/PipelinesDemo/PipelinesDemo.sln
+              arguments: "--configuration $(BuildConfiguration) --output $(build.artifactstagingdirectory)/Sreyanth/PipelinesDemo/PipelinesDemo.sln"
+              zipAfterPublish: True
+
+          - task: PublishBuildArtifacts@1
+            condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+            displayName: "Publish Artifact"
+            inputs:
+              PathtoPublish: "$(build.artifactstagingdirectory)/Sreyanth/PipelinesDemo/PipelinesDemo.sln"
+              ArtifactName: drop
+
+#Azure Deployment
+  - stage: Azdeployment
+    displayName: 'azure resource deployment'
+    jobs:
+      - job: "resourcedeployment"
+        displayName: "deployment of resources"
+        pool:
+          vmImage: "windows-latest"
+        steps:         
+          - task: AzureCLI@2  #Validate Deployment
+            displayName: 'Azure bicep template resource deployment'
+            inputs:             
+              azureSubscription: "Interns"   #service connection name 
+              scriptType: "bash"
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                 az deployment group validate --resource-group "Sreyanth_ResouceGroup" -f "Sreyanth/PipelinesDemo/yaml/Infrastructure/resource.bicep" --parameters "Sreyanth/PipelinesDemo/yaml/Infrastructure/resource.parameters.dev.json"
+          - task: AzureCLI@2  #Create Deployment
+            displayName: 'Azure bicep template resource deployment'
+            inputs:
+              condition : "and(succeeded(), eq(variables.isMain, 'true'))"
+              azureSubscription: "Interns"
+              scriptType: "bash"
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az deployment group create --resource-group  "Sreyanth_ResouceGroup" -f "Sreyanth/PipelinesDemo/yaml/Infrastructure/resource.bicep" --parameters "Sreyanth/PipelinesDemo/yaml/Infrastructure/resource.parameters.dev.json"
+ 
+# Deploy to Dev Environment
+  - stage: DevDeploy
+    displayName: 'Release to Dev'
+    jobs:
+      - deployment: DeployDev
+        displayName: Deploy to Dev
+        environment: 'Demo-dev'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: drop
+                  patterns: '**/*'
+                - task: AzureRMWebAppDeployment@4
+                  displayName: 'Deploy : demo-dev-as'
+                  inputs:
+                    azureSubscription: "Interns"
+                    WebAppName: 'pipelinedemo-dev'
+                    Package: '$(Pipeline.Workspace)/drop/**.zip'
+                    enableCustomDeployment: true
+                    DeploymentType: zipDeploy 
+                    RemoveAdditionalFilesFlag: true
+                    appType: 'webApp'
+
+# Deploy to Test Environment
+  - stage: TestDeploy
+    displayName: 'Release to Test'
+    jobs:
+      - deployment: DeployTest
+        displayName: Release to Test
+        environment: 'Demo-tst'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: drop
+                  patterns: '**/*'
+                - task: AzureRMWebAppDeployment@4
+                  displayName: 'Deploy : app-test-as'
+                  inputs:
+                    azureSubscription: "Interns"
+                    WebAppName: 'pipelinedemo-dev'
+                    Package: '$(Pipeline.Workspace)/drop/**.zip'
+                    enableCustomDeployment: true
+                    DeploymentType: zipDeploy 
+                    RemoveAdditionalFilesFlag: true
+                    appType: 'webApp'
+
+# Deploy to Prod Environment (with Approval)
+  - stage: AppDeploy_prod
+    displayName: 'Prod: Release to Prod'
+    jobs:
+      - deployment: DeployApp_prod
+        displayName: Release to Prod
+        environment: 'Demo-prod'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: drop
+                  patterns: '**/*'
+                - task: AzureRMWebAppDeployment@4
+                  displayName: 'Deploy : app-prod-as'
+                  inputs:
+                    azureSubscription: 'Interns'
+                    WebAppName: 'pipelinedemo-prod'
+                    Package: '$(Pipeline.Workspace)/drop/**.zip'
+                    enableCustomDeployment: true
+                    DeploymentType: zipDeploy 
+                    RemoveAdditionalFilesFlag: true
+                    appType: 'webApp'
